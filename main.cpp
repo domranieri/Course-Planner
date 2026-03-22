@@ -1,260 +1,180 @@
-// Dominic Ranieri
-
+// main.cpp
 #include <iostream>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <vector>
+#include <limits>
 #include <algorithm>
+#include "BinarySearchTree.h"
+#include "Course.h"
 
-using namespace std;
+// String utilities
 
-
-// Course Structure
-
-struct Course {
-    string courseNumber;
-    string courseTitle;
-    vector<string> prerequisites;
-};
-
-
-// Binary Search Tree
-
-class BinarySearchTree {
-
-private:
-    struct Node {
-        Course course;
-        Node* left;
-        Node* right;
-
-        Node(Course c) {
-            course = c;
-            left = nullptr;
-            right = nullptr;
-        }
-    };
-
-    Node* root;
-
-    // Insert helper
-    Node* insert(Node* node, Course course) {
-        if (node == nullptr) {
-            return new Node(course);
-        }
-
-        if (course.courseNumber < node->course.courseNumber) {
-            node->left = insert(node->left, course);
-        }
-        else {
-            node->right = insert(node->right, course);
-        }
-
-        return node;
-    }
-
-    // In order traversal helper
-    void inOrder(Node* node) const {
-        if (node == nullptr) {
-            return;
-        }
-
-        inOrder(node->left);
-        cout << node->course.courseNumber << ", "
-            << node->course.courseTitle << endl;
-        inOrder(node->right);
-    }
-
-    // Search helper
-    Node* search(Node* node, string courseNumber) const {
-        if (node == nullptr) {
-            return nullptr;
-        }
-
-        if (node->course.courseNumber == courseNumber) {
-            return node;
-        }
-
-        if (courseNumber < node->course.courseNumber) {
-            return search(node->left, courseNumber);
-        }
-
-        return search(node->right, courseNumber);
-    }
-
-public:
-    BinarySearchTree() {
-        root = nullptr;
-    }
-
-    void Insert(Course course) {
-        root = insert(root, course);
-    }
-
-    void PrintAll() const {
-        inOrder(root);
-    }
-
-    Course* Search(string courseNumber) const {
-        Node* result = search(root, courseNumber);
-        if (result != nullptr) {
-            return &(result->course);
-        }
-        return nullptr;
-    }
-};
-
-
-// Utility Functions
-
-
-// Convert string to uppercase
-string toUpperCase(string str) {
-    transform(str.begin(), str.end(), str.begin(), ::toupper);
+// Uppercase conversion
+static std::string toUpperCase(std::string str) {
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
     return str;
 }
 
-// Trim whitespace
-string trim(string str) {
-    str.erase(remove_if(str.begin(), str.end(), ::isspace), str.end());
-    return str;
+// Trim leading and trailing whitespace
+static std::string trim(const std::string& str) {
+    const std::string whitespace = " \t\r\n";
+    size_t start = str.find_first_not_of(whitespace);
+    if (start == std::string::npos) return "";
+    size_t end = str.find_last_not_of(whitespace);
+    return str.substr(start, end - start + 1);
 }
 
+// loadDataStructure
+//   Reads a CSV file where each line is:
+//     CourseNumber,CourseTitle[,Prereq1,Prereq2,...]
 
-// Load Data
+static void loadDataStructure(const std::string& fileName, BinarySearchTree& bst) {
 
-void loadDataStructure(string fileName, BinarySearchTree& bst) {
-
-    ifstream file(fileName);
+    std::ifstream file(fileName);
 
     if (!file.is_open()) {
-        cout << "Error: Unable to open file." << endl;
+        std::cout << "Error: Unable to open \"" << fileName << "\". "
+                  << "Check that the file exists and the path is correct.\n";
         return;
     }
 
-    string line;
+    int loaded  = 0;
+    int skipped = 0;
+    std::string line;
 
-    while (getline(file, line)) {
+    while (std::getline(file, line)) {
 
-        stringstream ss(line);
-        string token;
-        vector<string> tokens;
+        // Skip blank lines
+        if (trim(line).empty()) continue;
 
-        while (getline(ss, token, ',')) {
+        std::stringstream ss(line);
+        std::string token;
+        std::vector<std::string> tokens;
+
+        while (std::getline(ss, token, ',')) {
             tokens.push_back(trim(token));
         }
 
-        if (tokens.size() < 2) {
-            cout << "Invalid format detected in file." << endl;
+        if (tokens.size() < 2 || tokens[0].empty() || tokens[1].empty()) {
+            std::cout << "  Skipping malformed line: " << line << "\n";
+            ++skipped;
             continue;
         }
 
         Course course;
-        course.courseNumber = tokens[0];
-        course.courseTitle = tokens[1];
+        course.courseNumber = toUpperCase(tokens[0]);
+        course.courseTitle  = tokens[1];
 
-        for (size_t i = 2; i < tokens.size(); i++) {
+        for (size_t i = 2; i < tokens.size(); ++i) {
             if (!tokens[i].empty()) {
-                course.prerequisites.push_back(tokens[i]);
+                course.prerequisites.push_back(toUpperCase(tokens[i]));
             }
         }
 
         bst.Insert(course);
+        ++loaded;
     }
 
     file.close();
-    cout << "Data successfully loaded." << endl;
+
+    std::cout << "Data loaded: " << loaded << " course(s)";
+    if (skipped > 0) {
+        std::cout << ", " << skipped << " line(s) skipped due to formatting issues";
+    }
+    std::cout << ".\n";
 }
 
+// printCourse
+//   Prompts for a course number and prints its details if found
 
-// Print Single Course
+static void printCourse(const BinarySearchTree& bst) {
 
-void printCourse(BinarySearchTree& bst) {
-
-    string courseNumber;
-    cout << "What course do you want to know about? ";
-    cin >> courseNumber;
-
+    std::string courseNumber;
+    std::cout << "What course do you want to know about? ";
+    std::cin >> courseNumber;
     courseNumber = toUpperCase(courseNumber);
 
-    Course* course = bst.Search(courseNumber);
+    Course course = bst.Search(courseNumber);
 
-    if (course == nullptr) {
-        cout << "Course not found." << endl;
+    if (course.courseNumber.empty()) {
+        std::cout << "Course \"" << courseNumber << "\" not found.\n";
         return;
     }
 
-    cout << course->courseNumber << ", "
-        << course->courseTitle << endl;
+    std::cout << course.courseNumber << ", " << course.courseTitle << "\n";
 
-    if (!course->prerequisites.empty()) {
-        cout << "Prerequisites: ";
-        for (size_t i = 0; i < course->prerequisites.size(); i++) {
-            cout << course->prerequisites[i];
-            if (i < course->prerequisites.size() - 1) {
-                cout << ", ";
-            }
+    if (!course.prerequisites.empty()) {
+        std::cout << "Prerequisites: ";
+        for (size_t i = 0; i < course.prerequisites.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << course.prerequisites[i];
         }
-        cout << endl;
-    }
-    else {
-        cout << "No prerequisites." << endl;
+        std::cout << "\n";
+    } else {
+        std::cout << "Prerequisites: None\n";
     }
 }
 
-
-// Main Program
+// main
 
 int main() {
 
     BinarySearchTree bst;
-    string fileName;
+    std::string fileName;
     int choice = 0;
 
-    cout << "Welcome to the course planner." << endl;
+    std::cout << "Welcome to the Course Planner.\n";
 
     while (choice != 9) {
 
-        cout << endl;
-        cout << "1. Load Data Structure." << endl;
-        cout << "2. Print Course List." << endl;
-        cout << "3. Print Course." << endl;
-        cout << "9. Exit" << endl;
-        cout << "What would you like to do? ";
+        std::cout << "\n";
+        std::cout << "  1. Load Data Structure\n";
+        std::cout << "  2. Print Course List\n";
+        std::cout << "  3. Print Course\n";
+        std::cout << "  9. Exit\n";
+        std::cout << "What would you like to do? ";
 
-        cin >> choice;
+        std::cin >> choice;
 
-        if (cin.fail()) {
-            cin.clear();
-            cin.ignore(1000, '\n');
-            cout << "Invalid input." << endl;
+        if (std::cin.fail()) {
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cout << "Invalid input. Please enter a menu number.\n";
             continue;
         }
 
         switch (choice) {
 
         case 1:
-            cout << "Enter file name: ";
-            cin >> fileName;
+            std::cout << "Enter file name: ";
+            std::cin >> fileName;
             loadDataStructure(fileName, bst);
             break;
 
         case 2:
-            cout << "Here is a sample schedule:" << endl;
-            bst.PrintAll();
+            if (bst.IsEmpty()) {
+                std::cout << "No data loaded yet. Please use option 1 first.\n";
+            } else {
+                std::cout << "Here is a sample schedule (" << bst.Size() << " courses):\n";
+                bst.PrintAll();
+            }
             break;
 
         case 3:
-            printCourse(bst);
+            if (bst.IsEmpty()) {
+                std::cout << "No data loaded yet. Please use option 1 first.\n";
+            } else {
+                printCourse(bst);
+            }
             break;
 
         case 9:
-            cout << "Thank you for using the course planner!" << endl;
+            std::cout << "Thank you for using the Course Planner!\n";
             break;
 
         default:
-            cout << choice << " is not a valid option." << endl;
+            std::cout << choice << " is not a valid option.\n";
         }
     }
 
